@@ -40,6 +40,78 @@
       "version": 1,
       "text": "brief",
       "metadata": {}
+    },
+    {
+      "external_id": "graph-a",
+      "version": 1,
+      "text": "graph neural network message passing node classification layers",
+      "metadata": {}
+    },
+    {
+      "external_id": "graph-b",
+      "version": 1,
+      "text": "graph network node embedding message passing training",
+      "metadata": {}
+    },
+    {
+      "external_id": "graph-c",
+      "version": 1,
+      "text": "graph node classification embedding message passing layers",
+      "metadata": {}
+    },
+    {
+      "external_id": "graph-repost-1",
+      "version": 1,
+      "text": "graph neural network message passing node classification layers",
+      "metadata": {}
+    },
+    {
+      "external_id": "graph-repost-2",
+      "version": 1,
+      "text": "graph neural network message passing node classification layers",
+      "metadata": {}
+    },
+    {
+      "external_id": "graph-repost-3",
+      "version": 1,
+      "text": "graph neural network message passing node classification layers",
+      "metadata": {}
+    },
+    {
+      "external_id": "protein-a",
+      "version": 1,
+      "text": "protein structure folding sequence alignment molecular biology",
+      "metadata": {}
+    },
+    {
+      "external_id": "protein-b",
+      "version": 1,
+      "text": "protein folding sequence alignment molecular structure",
+      "metadata": {}
+    },
+    {
+      "external_id": "protein-c",
+      "version": 1,
+      "text": "protein sequence molecular biology folding alignment",
+      "metadata": {}
+    },
+    {
+      "external_id": "portfolio-a",
+      "version": 1,
+      "text": "portfolio risk asset allocation equity returns volatility",
+      "metadata": {}
+    },
+    {
+      "external_id": "portfolio-b",
+      "version": 1,
+      "text": "portfolio asset allocation risk volatility returns",
+      "metadata": {}
+    },
+    {
+      "external_id": "portfolio-c",
+      "version": 1,
+      "text": "portfolio allocation equity volatility model risk",
+      "metadata": {}
     }
   ],
   "context": {
@@ -55,6 +127,24 @@
     "splits": {
       "train": 8000,
       "test": 2000
+    }
+  },
+  "topics": {
+    "experiment_id": "demo-topics",
+    "constrained_experiment_id": "demo-topics-constrained",
+    "definition": {
+      "candidates": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "seed": "demo-seed",
+      "resamples": 5,
+      "minimum_similarity": 0.25,
+      "vector": {
+        "minimum_document_tokens": 3
+      }
     }
   }
 }

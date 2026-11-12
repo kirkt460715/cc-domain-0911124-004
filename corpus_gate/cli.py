@@ -7,6 +7,7 @@ from corpus_gate import batch, documents, inspection
 from corpus_gate.ingest import sources, formats, bundles
 from corpus_gate.text import profiles
 from corpus_gate.dedup import clusters
+from corpus_gate.topics import experiments as topic_experiments, constraints as topic_constraints
 from corpus_gate.releases import manifests, exporting, transfer
 
 
@@ -92,7 +93,7 @@ def parser():
 
 
 def demonstrate(app, fixture):
-    shape(fixture, {'source_id', 'authorization', 'profile', 'records', 'context', 'selection'})
+    shape(fixture, {'source_id', 'authorization', 'profile', 'records', 'context', 'selection'}, {'topics'})
     sources.create(app.db, fixture['source_id'], fixture['authorization'])
     profiles.put(app.db, 'default', 0, fixture['profile'])
     batch.stage(app.db, 'demo-batch', fixture['source_id'], 'default', fixture['records'])
@@ -116,14 +117,53 @@ def demonstrate(app, fixture):
     app.receiver.commit('demo-transfer', app.receiver.status('demo-transfer')['revision'])
     if app.receiver.export('demo-transfer') != envelope:
         fail('demo_transfer', 'Transfer did not reconstruct exact release envelope')
+    review = demonstrate_topics(app, fixture.get('topics'), fixture['context'])
     sources.revoke(app.db, fixture['source_id'], 1, 'Synthetic withdrawal')
     blocked = not manifests.authorization(app.db, 'demo-release')['allowed']
     if not blocked:
         fail('demo_withdrawal', 'Source withdrawal did not block release authorization')
+    experiment_invalidated = not topic_experiments.get(app.db, fixture['topics']['experiment_id'])['valid']
     checked = inspection.check(app.db)
     if not checked['ok']:
         fail('demo_integrity', 'Synthetic corpus integrity failed', problems=checked['problems'])
-    return {'synthetic': True, 'checkpoint_cursor': first['cursor'], 'ingested_records': completed['total'], 'accepted_cluster_members': len(clustered['members']), 'clusters': len(clusters.groups(app.db, 'demo-clusters')), 'published_documents': len(published['members']), 'release_digest': published['digest'], 'export_integrity': verified['integrity'], 'withdrawal_blocks_export': blocked, 'integrity': checked['ok']}
+    return {'synthetic': True, 'checkpoint_cursor': first['cursor'], 'ingested_records': completed['total'], 'accepted_cluster_members': len(clustered['members']), 'clusters': len(clusters.groups(app.db, 'demo-clusters')), 'published_documents': len(published['members']), 'release_digest': published['digest'], 'export_integrity': verified['integrity'], 'withdrawal_blocks_export': blocked, 'topic_exploration': review, 'withdrawal_invalidates_experiment': experiment_invalidated, 'integrity': checked['ok']}
+
+
+def demonstrate_topics(app, settings, fixture_context):
+    if settings is None:
+        return None
+    shape(settings, {'experiment_id', 'constrained_experiment_id', 'definition'})
+    definition = settings['definition']
+    experiment = topic_experiments.run(app.db, settings['experiment_id'], 'demo-clusters', fixture_context, definition)
+    if experiment['state'] != 'complete':
+        fail('demo_topics', 'Synthetic topic experiment did not complete', state=experiment['state'], reason=experiment['reason'])
+    documents_by_external = {row['external_id']: row['document_id'] for row in documents.listing(app.db) if row['is_head']}
+    def summary(result):
+        return {'experiment_id': result['experiment_id'], 'selected_k': result['selection']['selected_k'], 'stability_ari': result['selection']['stability_ari'], 'silhouette': result['selection']['silhouette'], 'distortion_optimum_k': result['selection']['minimum_distortion_k'], 'topics': [{'topic_id': topic['topic_id'], 'terms': [row['term'] for row in topic['terms'][:4]], 'documents': topic['sizes']['documents'], 'units': topic['sizes']['units'], 'sources': topic['sources'], 'representatives': topic['representatives'], 'boundary': [row['document_id'] for row in topic['boundary_documents']]} for topic in result['topics']], 'repost_documents': result['deduplication']['duplicate_documents'], 'repost_effect': result['deduplication']['repost_effect'], 'equal_weight_counterfactual': result['deduplication']['equal_weight_counterfactual']}
+    baseline = summary(experiment)
+
+    pair = next((topic for topic in experiment['topics'] if len({row['unit_id'] for row in topic['members']}) >= 2), None)
+    if pair is None:
+        fail('demo_topics', 'Synthetic corpus lacks a topic with two weighted units')
+    units = sorted({row['unit_id'] for row in pair['members']})
+    left = next(row['document_id'] for row in pair['members'] if row['unit_id'] == units[0])
+    right = next(row['document_id'] for row in pair['members'] if row['unit_id'] == units[1])
+    from corpus_gate.review import desk
+    desk.register(app.db, 'demo-supervisor', 'supervisor')
+    topic_constraints.put(app.db, left, right, 'different', 0, 'demo-supervisor', 'Synthetic editorial separation')
+    constrained = topic_experiments.run(app.db, settings['constrained_experiment_id'], 'demo-clusters', fixture_context, definition)
+    if constrained['state'] != 'complete':
+        fail('demo_topics', 'Constrained synthetic topic experiment did not complete', state=constrained['state'])
+    separate = constrained['assignments'][left] != constrained['assignments'][right]
+    duplicate_pair = (documents_by_external['graph-a'], documents_by_external['graph-repost-1'])
+    topic_constraints.put(app.db, duplicate_pair[0], duplicate_pair[1], 'different', 0, 'demo-supervisor', 'Synthetic impossible split')
+    contradiction = topic_experiments.run(app.db, settings['constrained_experiment_id'] + '-conflict', 'demo-clusters', fixture_context, definition)
+    conflict_expected = contradiction['state'] == 'infeasible' and contradiction['reason'] == 'constraint_contradiction'
+    topic_constraints.remove(app.db, duplicate_pair[0], duplicate_pair[1], 1, 'demo-supervisor', 'Synthetic rollback')
+    topic_constraints.remove(app.db, left, right, 1, 'demo-supervisor', 'Synthetic rollback')
+    compared = topic_experiments.compare(app.db, settings['experiment_id'], settings['constrained_experiment_id'])
+    changed = not separate or compared['summary']['document_moves'] > 0 or compared['summary']['split'] > 0 or compared['summary']['merges'] > 0
+    return {'baseline': baseline, 'constrained': {**summary(constrained), 'separated_documents': [left, right], 'forced_documents_in_different_topics': separate, 'topic_changed_by_constraint': changed}, 'comparison': {'summary': compared['summary'], 'topic_map': compared['topic_map_after_to_before'], 'migrations': len(compared['migrations'])}, 'contradiction_detected': conflict_expected, 'contradiction_reason': contradiction['reason']}
 
 
 def execute(app, args):

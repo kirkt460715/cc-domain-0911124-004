@@ -12,6 +12,7 @@ from corpus_gate.review.appeals import Appeals
 from corpus_gate.releases import manifests, exporting, selection
 from corpus_gate.releases.transfer import Receiver
 from corpus_gate.releases.withdrawals import Notices
+from corpus_gate.topics import experiments as topic_experiments
 
 
 class CorpusGate:
@@ -49,6 +50,7 @@ class CorpusGate:
         def bind(function):
             return lambda **arguments: function(self.db, **arguments)
         from corpus_gate.dedup import diagnostics
+        from corpus_gate.topics import constraints as topic_constraints
         from corpus_gate.ingest import bundles, validation as intake_validation
         from corpus_gate.releases import validation, statistics
         from corpus_gate.review import sampling
@@ -130,6 +132,16 @@ class CorpusGate:
             'constraint.remove': (self.constraints.remove, 'left_id right_id expected_revision actor reason', ''),
             'constraint.list': (self.constraints.listing, '', 'active_only'),
             'constraint.history': (self.constraints.history, 'left_id right_id', ''),
+            'topic.run': (bind(topic_experiments.run), 'experiment_id cluster_run_id context definition', ''),
+            'topic.get': (bind(topic_experiments.get), 'experiment_id', ''),
+            'topic.participants': (bind(topic_experiments.participants), 'experiment_id', ''),
+            'topic.list': (bind(topic_experiments.listing), '', ''),
+            'topic.compare': (bind(topic_experiments.compare), 'before after', ''),
+            'topic.classify': (bind(topic_experiments.classify), 'experiment_id document_ids', ''),
+            'topic_constraint.put': (bind(topic_constraints.put), 'left_id right_id kind expected_revision actor reason', ''),
+            'topic_constraint.remove': (bind(topic_constraints.remove), 'left_id right_id expected_revision actor reason', ''),
+            'topic_constraint.list': (bind(topic_constraints.listing), '', 'active_only'),
+            'topic_constraint.history': (bind(topic_constraints.history), 'left_id right_id', ''),
             'release.select': (bind(selection.select), 'run_id context definition', ''),
             'release.prepare': (bind(manifests.prepare), 'release_id run_id context definition', ''),
             'release.commit': (bind(manifests.commit), 'release_id expected_revision', ''),

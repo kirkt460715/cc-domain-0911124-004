@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS releases(release_id TEXT PRIMARY KEY,revision INTEGER
 CREATE TABLE IF NOT EXISTS release_members(release_id TEXT NOT NULL REFERENCES releases(release_id),document_id TEXT NOT NULL,cluster_id TEXT NOT NULL,split TEXT NOT NULL,ordinal INTEGER NOT NULL,payload TEXT NOT NULL,digest TEXT NOT NULL,PRIMARY KEY(release_id,document_id));
 CREATE TABLE IF NOT EXISTS release_events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,release_id TEXT NOT NULL,action TEXT NOT NULL,body TEXT NOT NULL,at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit(position INTEGER PRIMARY KEY AUTOINCREMENT,action TEXT NOT NULL,payload TEXT NOT NULL,previous_hash TEXT NOT NULL,entry_hash TEXT NOT NULL,at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS topic_experiments(experiment_id TEXT PRIMARY KEY,corpus_revision INTEGER NOT NULL,cluster_run_id TEXT NOT NULL,context TEXT NOT NULL,definition TEXT NOT NULL,state TEXT NOT NULL,reason TEXT,vocabulary_digest TEXT NOT NULL,digest TEXT NOT NULL,payload TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS topic_assignments(experiment_id TEXT NOT NULL REFERENCES topic_experiments(experiment_id),document_id TEXT NOT NULL,state TEXT NOT NULL,topic_id TEXT,reason TEXT,origin TEXT NOT NULL,payload TEXT NOT NULL,digest TEXT NOT NULL,assigned_at TEXT NOT NULL,PRIMARY KEY(experiment_id,document_id));
+CREATE TABLE IF NOT EXISTS topic_constraints(left_id TEXT NOT NULL,right_id TEXT NOT NULL,kind TEXT NOT NULL,revision INTEGER NOT NULL,state TEXT NOT NULL,reason TEXT NOT NULL,actor TEXT NOT NULL,PRIMARY KEY(left_id,right_id));
+CREATE TABLE IF NOT EXISTS topic_constraint_history(left_id TEXT NOT NULL,right_id TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(left_id,right_id,revision));
 '''
 
 

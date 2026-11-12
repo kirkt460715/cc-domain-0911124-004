@@ -4,6 +4,7 @@ from corpus_gate import documents, batch
 from corpus_gate.text import profiles
 from corpus_gate.ingest import recovery
 from corpus_gate.dedup import clusters
+from corpus_gate.topics import experiments as topic_experiments
 from corpus_gate.releases import manifests, selection
 
 
@@ -47,6 +48,11 @@ def check(db):
                     problems.append({'code': 'release_leakage', 'release_id': row['release_id']})
             except GateError as exc:
                 problems.append(exc.as_dict())
+        for row in db.all('SELECT experiment_id FROM topic_experiments ORDER BY experiment_id'):
+            try:
+                topic_experiments.get(db, row['experiment_id'])
+            except GateError as exc:
+                problems.append(exc.as_dict())
         return {'ok': not problems, 'problems': problems, 'database': database, 'audit': audit, 'corpus_revision': db.revision()}
 
 
@@ -54,7 +60,8 @@ def overview(db):
     states = db.all('SELECT d.state,COUNT(*) AS count FROM documents d JOIN document_heads h ON h.document_id=d.document_id GROUP BY d.state ORDER BY d.state')
     batches = db.all('SELECT state,COUNT(*) AS count FROM batches GROUP BY state ORDER BY state')
     releases = db.all('SELECT state,COUNT(*) AS count FROM releases GROUP BY state ORDER BY state')
-    return {'corpus_revision': db.revision(), 'documents': {row['state']: row['count'] for row in states}, 'batches': {row['state']: row['count'] for row in batches}, 'releases': {row['state']: row['count'] for row in releases}, 'sources': db.scalar('SELECT COUNT(*) FROM sources'), 'chunks': db.scalar('SELECT COUNT(*) FROM chunks'), 'cluster_runs': db.scalar('SELECT COUNT(*) FROM cluster_runs')}
+    topics = db.all('SELECT state,COUNT(*) AS count FROM topic_experiments GROUP BY state ORDER BY state')
+    return {'corpus_revision': db.revision(), 'documents': {row['state']: row['count'] for row in states}, 'batches': {row['state']: row['count'] for row in batches}, 'releases': {row['state']: row['count'] for row in releases}, 'topic_experiments': {row['state']: row['count'] for row in topics}, 'sources': db.scalar('SELECT COUNT(*) FROM sources'), 'chunks': db.scalar('SELECT COUNT(*) FROM chunks'), 'cluster_runs': db.scalar('SELECT COUNT(*) FROM cluster_runs')}
 
 
 def quality_report(db, source_id=None):
@@ -84,7 +91,12 @@ def source_impact(db, source_id):
         matching = [member['document_id'] for member in release['members'] if member['payload']['source_id'] == source_id]
         if matching:
             releases.append({'release_id': release['release_id'], 'state': release['state'], 'documents': matching, 'authorization': manifests.authorization(db, release['release_id'])})
-    return {'source': source, 'current_documents': [row['document_id'] for row in docs], 'releases': releases}
+    experiments = []
+    for row in db.all('SELECT experiment_id FROM topic_experiments ORDER BY created_at,experiment_id'):
+        payload = topic_experiments.get(db, row['experiment_id'])
+        if any(reason.get('source_id') == source_id for reason in payload['invalid_reasons']):
+            experiments.append({'experiment_id': row['experiment_id'], 'state': payload['state'], 'topics': len(payload['topics']), 'invalid_reasons': [reason for reason in payload['invalid_reasons'] if reason.get('source_id') == source_id]})
+    return {'source': source, 'current_documents': [row['document_id'] for row in docs], 'releases': releases, 'topic_experiments': experiments}
 
 
 def audit_page(db, after=0, limit=100):
